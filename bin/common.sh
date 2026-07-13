@@ -43,7 +43,7 @@ function install_jq() {
   if [[ -f "${ENV_DIR}/JQ_VERSION" ]]; then
     JQ_VERSION=$(cat "${ENV_DIR}/JQ_VERSION")
   else
-    JQ_VERSION=1.7.1
+    JQ_VERSION=1.8.2
   fi
   step "Fetching jq $JQ_VERSION"
   if [ -f "${CACHE_DIR}/dist/jq-$JQ_VERSION" ]; then
@@ -61,9 +61,10 @@ function install_jre() {
   if [[ -f "${ENV_DIR}/JRE_MAJOR_VERSION" ]]; then
     JRE_MAJOR_VERSION=$(cat "${ENV_DIR}/JRE_MAJOR_VERSION")
   else
-    JRE_MAJOR_VERSION=17
+    JRE_MAJOR_VERSION=25
   fi
   step "Install AdoptOpenJDK $JRE_MAJOR_VERSION JRE"
+  # https://api.adoptium.net/q/swagger-ui/#/Assets/searchReleases
   local jre_query_url="https://api.adoptium.net/v3/assets/feature_releases/${JRE_MAJOR_VERSION}/ga"
   local http_code
   http_code=$($CURL -G -o "$TMP_PATH/jre.json" -w '%{http_code}' -H "accept: application/json" "${jre_query_url}" \
@@ -94,10 +95,10 @@ function install_jre() {
     jre_url=$(cat "$TMP_PATH/jre.json" | jq '.[] | .binaries | .[] | .package.link' | xargs)
   else
     warn "Adoptium API v3 HTTP STATUS CODE: $http_code"
-    local jre_release_name="jdk-17.0.9%2B99"
+    local jre_release_name="jdk-25.0.3%2B9"
     info "Using by default $jre_release_name"
-    local jre_dist="OpenJDK17U-jre_x64_linux_hotspot_17.0.9_9.tar.gz"
-    local jre_url="https://github.com/adoptium/temurin17-binaries/releases/download/${jre_release_name}/${jre_dist}"
+    local jre_dist="OpenJDK25U-jre_x64_linux_hotspot_25.0.3_9.tar.gz"
+    local jre_url="https://github.com/adoptium/temurin25-binaries/releases/download/${jre_release_name}/${jre_dist}"
     local checksum_url="${jre_url}.sha256.txt"
   fi
   info "Fetching $jre_dist"
@@ -195,28 +196,28 @@ function fetch_keycloak_dist() {
   dist_url=$(echo "${download_url}/${dist}" | xargs)
   dist_url="${dist_url%\"}"
   dist_url="${dist_url#\"}"
-  local sha1_dist
-  sha1_dist=$(echo "${dist}.sha1" | xargs)
-  local sha1_url
-  sha1_url=$(echo "${download_url}/${sha1_dist}" | xargs)
-  sha1_url="${sha1_url%\"}"
-  sha1_url="${sha1_url#\"}"
+  local asc_dist
+  asc_dist=$(echo "${dist}.asc" | xargs)
+  local asc_url
+  asc_url=$(echo "${download_url}/${asc_dist}" | xargs)
+  asc_url="${asc_url%\"}"
+  asc_url="${asc_url#\"}"
   step "Fetch keycloak ${version} dist"
   if [ -f "${CACHE_DIR}/dist/${dist}" ]; then
     info "File is already downloaded"
   else
     ${CURL} -g -o "${CACHE_DIR}/dist/${dist}" "${dist_url}"
   fi
-  ${CURL} -g -o "${CACHE_DIR}/dist/${dist}.sha1" "${sha1_url}"
-  local file_checksum
-  file_checksum="$(shasum "${CACHE_DIR}/dist/${dist}" | cut -d \  -f 1)"
-  local checksum
-  checksum=$(cat "${CACHE_DIR}/dist/${dist}.sha1")
-  if [ "$checksum" != "$file_checksum" ]; then
-    err "Keycloak checksum file downloaded not valid"
-    exit 1
+  ${CURL} -g -o "${CACHE_DIR}/dist/${dist}.asc" "${asc_url}"
+  local key_url="https://www.keycloak.org/keys/keycloak-2.asc"
+  ${CURL} -g -o "${CACHE_DIR}/dist/keycloak-2.asc" "${key_url}"
+  gpg --import "${CACHE_DIR}/dist/keycloak-2.asc"
+  gpg --verify "${CACHE_DIR}/dist/${dist}.asc" "${CACHE_DIR}/dist/${dist}"
+  if gpg --verify "${CACHE_DIR}/dist/${dist}.asc" "${CACHE_DIR}/dist/${dist}" 2>/dev/null; then
+    info "Keycloak asc is valid"
   else
-    info "Keycloak checksum valid"
+    err "Keycloak asc file downloaded not valid"
+    exit 1
   fi
   tar xzf "$CACHE_DIR/dist/${dist}" -C "$location"
   finished
