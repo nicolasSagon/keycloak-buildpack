@@ -1,4 +1,4 @@
-FROM scalingo/scalingo-22
+FROM scalingo/scalingo-24
 ADD . buildpack
 
 ADD .env /env/.env
