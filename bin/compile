@@ -98,6 +98,28 @@ if [[ -f "${ENV_DIR}/KEYCLOAK_PRIVATE_PROVIDER" ]]; then
   IFS=' ' 
 fi
 
+step "Adding URL providers"
+if [[ -f "${ENV_DIR}/KEYCLOAK_URL_PROVIDERS" ]] || [[ -f "${ENV_DIR}/Keycloak_URL_PROVIDERS" ]]; then
+  KEYCLOAK_URL_PROVIDERS=""
+  if [[ -f "${ENV_DIR}/KEYCLOAK_URL_PROVIDERS" ]]; then
+    KEYCLOAK_URL_PROVIDERS=$(cat "${ENV_DIR}/KEYCLOAK_URL_PROVIDERS")
+  else
+    KEYCLOAK_URL_PROVIDERS=$(cat "${ENV_DIR}/Keycloak_URL_PROVIDERS")
+  fi
+  IFS=','
+  read -ra URL_PROVIDERS <<< "${KEYCLOAK_URL_PROVIDERS}"
+  for PROVIDER_URL in "${URL_PROVIDERS[@]}"; do   
+    PROVIDER_URL=$(echo "${PROVIDER_URL}" | xargs)
+    if [[ -n "${PROVIDER_URL}" ]]; then
+      FILENAME=$(get_filename_from_url "${PROVIDER_URL}")
+      start "Add provider from URL ${FILENAME}"
+      fetch_url_provider_dist "${PROVIDER_URL}" "${TMP_PATH}" "${KEYCLOAK_PATH}" | indent
+      finished
+    fi
+  done
+  IFS=' ' 
+fi
+
 step "Adding templates"
 if [[ -f "${ENV_DIR}/KEYCLOAK_TEMPLATES_DIR" ]]; then
   KEYCLOAK_TEMPLATES_DIR=$(cat "${ENV_DIR}/KEYCLOAK_TEMPLATES_DIR")
